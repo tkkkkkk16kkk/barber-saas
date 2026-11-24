@@ -95,6 +95,12 @@ function AdminContenido() {
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
   const [perfilGuardado, setPerfilGuardado] = useState(false);
 
+  // Estados para Buzón de Ideas y Plan seleccionado
+  const [ideaTexto, setIdeaTexto] = useState('');
+  const [enviandoIdea, setEnviandoIdea] = useState(false);
+  const [ideaEnviada, setIdeaEnviada] = useState(false);
+  const [planSeleccionado, setPlanSeleccionado] = useState<'mensual' | 'trimestral' | 'anual'>('mensual');
+
   // Estados para Turno Manual
   const [mostrarFormManual, setMostrarFormManual] = useState(false);
   const [manualBarberoId, setManualBarberoId] = useState('');
@@ -215,7 +221,7 @@ function AdminContenido() {
     }
   }, [barberia, fecha, barberoFiltro]);
 
-  async function iniciarSuscripcion() {
+  async function iniciarSuscripcion(planTipo: 'mensual' | 'trimestral' | 'anual' = planSeleccionado) {
     if (!barberia) return;
     setCargandoPago(true);
     try {
@@ -227,6 +233,7 @@ function AdminContenido() {
           barberiaId: barberia.id,
           slug,
           email: user?.email,
+          planTipo,
         }),
       });
       const data = await res.json();
@@ -237,6 +244,25 @@ function AdminContenido() {
       }
     } finally {
       setCargandoPago(false);
+    }
+  }
+
+  async function enviarIdea(e: React.FormEvent) {
+    e.preventDefault();
+    if (!barberia || !ideaTexto.trim()) return;
+    setEnviandoIdea(true);
+    const { error } = await supabase.from('sugerencias').insert({
+      barberia_id: barberia.id,
+      barberia_nombre: barberia.nombre,
+      mensaje: ideaTexto.trim(),
+    });
+    setEnviandoIdea(false);
+    if (!error) {
+      setIdeaTexto('');
+      setIdeaEnviada(true);
+      setTimeout(() => setIdeaEnviada(false), 3000);
+    } else {
+      alert('No se pudo enviar tu idea. Probá de nuevo.');
     }
   }
 
@@ -562,7 +588,7 @@ function AdminContenido() {
             <span className="text-white font-medium">/{slug}</span>, activá tu suscripción mensual automática.
           </p>
           <button
-            onClick={iniciarSuscripcion}
+            onClick={() => iniciarSuscripcion('mensual')}
             disabled={cargandoPago}
             className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
           >
@@ -617,7 +643,7 @@ function AdminContenido() {
               Te quedan <strong className="text-white">{diasRestantes} días</strong> de prueba gratuita.
             </p>
             <button
-              onClick={iniciarSuscripcion}
+              onClick={() => iniciarSuscripcion()}
               disabled={cargandoPago}
               className="bg-white text-black text-xs font-semibold px-4 py-2 rounded-lg hover:bg-neutral-200 transition disabled:opacity-50"
             >
@@ -1218,48 +1244,111 @@ function AdminContenido() {
               </div>
             </section>
 
-            {/* Mi Suscripción */}
+            {/* Mi Suscripción y Planes */}
             <section className="space-y-3 border-t border-neutral-800 pt-6">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
-                Mi Suscripción
+                Planes y Suscripción
               </h2>
 
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-white">
-                    {barberia?.plan_estado === 'activa'
-                      ? 'Plan Mensual Activo'
-                      : barberia?.plan_estado === 'cancelada'
-                      ? 'Suscripción cancelada'
-                      : 'Prueba gratuita'}
-                  </p>
-                  <p className="text-xs text-neutral-400">
-                    {barberia?.vence_el
-                      ? `Acceso habilitado hasta el ${new Date(barberia.vence_el).toLocaleDateString('es-AR')}.`
-                      : 'Sin fecha de vencimiento.'}
-                  </p>
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-white">
+                      {barberia?.plan_estado === 'activa'
+                        ? 'Suscripción Activa'
+                        : barberia?.plan_estado === 'cancelada'
+                        ? 'Suscripción cancelada'
+                        : 'Prueba gratuita'}
+                    </p>
+                    <p className="text-xs text-neutral-400">
+                      {barberia?.vence_el
+                        ? `Acceso habilitado hasta el ${new Date(barberia.vence_el).toLocaleDateString('es-AR')}.`
+                        : 'Sin fecha de vencimiento.'}
+                    </p>
+                  </div>
+
+                  {barberia?.plan_estado === 'activa' && (
+                    <button
+                      type="button"
+                      onClick={cancelarSuscripcion}
+                      disabled={cancelandoSuscripcion}
+                      className="bg-red-950/60 border border-red-900 text-red-300 text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-red-900/60 transition disabled:opacity-50"
+                    >
+                      {cancelandoSuscripcion ? 'Cancelando...' : 'Cancelar suscripción'}
+                    </button>
+                  )}
                 </div>
 
-                {barberia?.plan_estado === 'activa' ? (
-                  <button
-                    type="button"
-                    onClick={cancelarSuscripcion}
-                    disabled={cancelandoSuscripcion}
-                    className="bg-red-950/60 border border-red-900 text-red-300 text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-red-900/60 transition disabled:opacity-50"
-                  >
-                    {cancelandoSuscripcion ? 'Cancelando...' : 'Cancelar suscripción'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={iniciarSuscripcion}
-                    disabled={cargandoPago}
-                    className="bg-white text-black text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
-                  >
-                    {cargandoPago ? 'Cargando...' : 'Activar suscripción'}
-                  </button>
+                {barberia?.plan_estado !== 'activa' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-neutral-800">
+                    {[
+                      { id: 'mensual' as const, titulo: 'Mensual', precio: '$15.000', sub: 'por mes' },
+                      { id: 'trimestral' as const, titulo: 'Trimestral', precio: '$40.000', sub: 'cada 3 meses · -11%' },
+                      { id: 'anual' as const, titulo: 'Anual', precio: '$144.000', sub: 'por año · -20%' },
+                    ].map((p) => {
+                      const sel = planSeleccionado === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPlanSeleccionado(p.id)}
+                          className={`text-left p-3.5 rounded-xl border transition ${
+                            sel
+                              ? 'bg-white text-black border-white'
+                              : 'bg-neutral-950 border-neutral-800 hover:border-neutral-600'
+                          }`}
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-wider">{p.titulo}</p>
+                          <p className="text-lg font-bold mt-1">{p.precio}</p>
+                          <p className={`text-[11px] ${sel ? 'text-neutral-600' : 'text-neutral-400'}`}>
+                            {p.sub}
+                          </p>
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => iniciarSuscripcion(planSeleccionado)}
+                      disabled={cargandoPago}
+                      className="sm:col-span-3 w-full bg-white text-black font-semibold py-3 rounded-xl text-sm hover:bg-neutral-200 transition disabled:opacity-50 mt-1"
+                    >
+                      {cargandoPago ? 'Redirigiendo a Mercado Pago...' : `Suscribirme al plan ${planSeleccionado}`}
+                    </button>
+                  </div>
                 )}
               </div>
+            </section>
+
+            {/* Buzón de Ideas y Sugerencias */}
+            <section className="space-y-3 border-t border-neutral-800 pt-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
+                Ideas y Mejoras
+              </h2>
+
+              <form
+                onSubmit={enviarIdea}
+                className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3"
+              >
+                <p className="text-xs text-neutral-400">
+                  ¿Te gustaría que agreguemos alguna función o mejora al sistema? Contanos acá y la sumamos.
+                </p>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Ej: Me gustaría poder enviar recordatorios automáticos por WhatsApp..."
+                  value={ideaTexto}
+                  onChange={(e) => setIdeaTexto(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-sm text-white resize-none"
+                />
+                <button
+                  type="submit"
+                  disabled={enviandoIdea}
+                  className="w-full bg-white text-black font-semibold py-2.5 rounded-xl text-sm hover:bg-neutral-200 transition disabled:opacity-50"
+                >
+                  {enviandoIdea ? 'Enviando...' : ideaEnviada ? '¡Gracias! Idea recibida' : 'Enviar sugerencia'}
+                </button>
+              </form>
             </section>
           </div>
         )}
