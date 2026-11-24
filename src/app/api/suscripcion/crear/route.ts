@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const PRECIO_MENSUAL = 15000; // <-- Cambiá acá el precio mensual en ARS
+const PRECIO_MENSUAL = 20000; // <-- Cambiá acá el precio mensual en ARS
 
 export async function POST(req: Request) {
   try {
