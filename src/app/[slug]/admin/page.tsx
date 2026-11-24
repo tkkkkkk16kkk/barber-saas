@@ -56,6 +56,9 @@ interface BarberiaAdmin {
   nombre: string;
   vence_el?: string | null;
   plan_estado?: string | null;
+  logo_url?: string | null;
+  direccion?: string | null;
+  instagram?: string | null;
 }
 
 const DIAS_SEMANA = [
@@ -83,6 +86,14 @@ function AdminContenido() {
   const [cargando, setCargando] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [cargandoPago, setCargandoPago] = useState(false);
+  const [cancelandoSuscripcion, setCancelandoSuscripcion] = useState(false);
+
+  // Estados para Perfil y Logo
+  const [direccion, setDireccion] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+  const [perfilGuardado, setPerfilGuardado] = useState(false);
 
   // Estados para Turno Manual
   const [mostrarFormManual, setMostrarFormManual] = useState(false);
@@ -168,7 +179,7 @@ function AdminContenido() {
 
       const { data: barb } = await supabase
         .from('barberias')
-        .select('id, nombre, owner_id, cobra_sena, sena_monto, mp_dato, vence_el, plan_estado')
+        .select('id, nombre, owner_id, cobra_sena, sena_monto, mp_dato, vence_el, plan_estado, logo_url, direccion, instagram')
         .eq('slug', slug)
         .single();
 
@@ -182,7 +193,12 @@ function AdminContenido() {
         nombre: barb.nombre,
         vence_el: barb.vence_el,
         plan_estado: barb.plan_estado,
+        logo_url: barb.logo_url,
+        direccion: barb.direccion,
+        instagram: barb.instagram,
       });
+      setDireccion(barb.direccion || '');
+      setInstagram(barb.instagram || '');
       setCobraSena(Boolean(barb.cobra_sena));
       setSenaMonto(barb.sena_monto ? String(barb.sena_monto) : '');
       setMpDato(barb.mp_dato || '');
@@ -224,8 +240,6 @@ function AdminContenido() {
     }
   }
 
-  const [cancelandoSuscripcion, setCancelandoSuscripcion] = useState(false);
-
   async function cancelarSuscripcion() {
     if (!barberia) return;
     const confirmar = window.confirm(
@@ -250,6 +264,52 @@ function AdminContenido() {
     } finally {
       setCancelandoSuscripcion(false);
     }
+  }
+
+  async function subirLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !barberia) return;
+
+    setSubiendoLogo(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const filePath = `${barberia.id}/logo-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        alert('Error al subir el logo: ' + uploadError.message);
+        return;
+      }
+
+      const { data } = supabase.storage.from('logos').getPublicUrl(filePath);
+      const logoUrl = data.publicUrl;
+
+      await supabase
+        .from('barberias')
+        .update({ logo_url: logoUrl })
+        .eq('id', barberia.id);
+
+      setBarberia((prev) => (prev ? { ...prev, logo_url: logoUrl } : prev));
+    } finally {
+      setSubiendoLogo(false);
+    }
+  }
+
+  async function guardarPerfil(e: React.FormEvent) {
+    e.preventDefault();
+    if (!barberia) return;
+    setGuardandoPerfil(true);
+    await supabase
+      .from('barberias')
+      .update({ direccion, instagram })
+      .eq('id', barberia.id);
+    setBarberia((prev) => (prev ? { ...prev, direccion, instagram } : prev));
+    setGuardandoPerfil(false);
+    setPerfilGuardado(true);
+    setTimeout(() => setPerfilGuardado(false), 2500);
   }
 
   async function crearTurnoManual(e: React.FormEvent) {
@@ -1093,6 +1153,71 @@ function AdminContenido() {
                 </button>
               </form>
             </section>
+
+            {/* Perfil y Logo */}
+            <section className="space-y-3 border-t border-neutral-800 pt-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
+                Perfil y Logo
+              </h2>
+
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-4">
+                <div className="flex items-center gap-4">
+                  {barberia?.logo_url ? (
+                    <img
+                      src={barberia.logo_url}
+                      alt="Logo"
+                      className="w-16 h-16 rounded-full object-cover border border-neutral-700"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center text-xs text-neutral-500">
+                      Sin logo
+                    </div>
+                  )}
+
+                  <label className="cursor-pointer bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition">
+                    {subiendoLogo ? 'Subiendo...' : 'Subir logo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={subirLogo}
+                      disabled={subiendoLogo}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <form onSubmit={guardarPerfil} className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-neutral-400 mb-1">Dirección</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Av. San Martín 450"
+                      value={direccion}
+                      onChange={(e) => setDireccion(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-400 mb-1">Instagram</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: @tubarberia"
+                      value={instagram}
+                      onChange={(e) => setInstagram(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm text-white"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={guardandoPerfil}
+                    className="w-full bg-white text-black font-semibold py-2.5 rounded-xl text-sm hover:bg-neutral-200 transition disabled:opacity-50"
+                  >
+                    {guardandoPerfil ? 'Guardando...' : perfilGuardado ? '¡Perfil guardado!' : 'Guardar perfil'}
+                  </button>
+                </form>
+              </div>
+            </section>
+
             {/* Mi Suscripción */}
             <section className="space-y-3 border-t border-neutral-800 pt-6">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
