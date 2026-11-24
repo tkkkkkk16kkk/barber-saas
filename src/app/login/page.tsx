@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 
@@ -17,7 +17,24 @@ export default function LoginPage() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
+useEffect(() => {
+    async function verificarSesion() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
+      const { data: barb } = await supabase
+        .from('barberias')
+        .select('slug')
+        .eq('owner_id', session.user.id)
+        .single();
+
+      if (barb?.slug) {
+        router.replace(`/${barb.slug}/admin`);
+      }
+    }
+    verificarSesion();
+  }, [router]);
+  
   function formatearSlug(texto: string) {
     return texto
       .toLowerCase()

@@ -41,7 +41,7 @@ body {
   }
 }
 
-/* Evita que los inputs de fecha y hora se deformen o se salgan de la pantalla en móvil */
+
 input[type="date"],
 input[type="time"] {
   min-width: 0;

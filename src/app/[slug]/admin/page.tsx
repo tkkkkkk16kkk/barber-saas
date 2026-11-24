@@ -224,6 +224,34 @@ function AdminContenido() {
     }
   }
 
+  const [cancelandoSuscripcion, setCancelandoSuscripcion] = useState(false);
+
+  async function cancelarSuscripcion() {
+    if (!barberia) return;
+    const confirmar = window.confirm(
+      '¿Seguro que querés cancelar tu suscripción? No se te volverá a cobrar y vas a seguir teniendo acceso hasta la fecha de vencimiento.'
+    );
+    if (!confirmar) return;
+
+    setCancelandoSuscripcion(true);
+    try {
+      const res = await fetch('/api/suscripcion/cancelar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barberiaId: barberia.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBarberia((prev) => (prev ? { ...prev, plan_estado: 'cancelada' } : prev));
+        alert('Suscripción cancelada. No se te volverá a cobrar.');
+      } else {
+        alert(data.error || 'No se pudo cancelar la suscripción');
+      }
+    } finally {
+      setCancelandoSuscripcion(false);
+    }
+  }
+
   async function crearTurnoManual(e: React.FormEvent) {
     e.preventDefault();
     if (!barberia || !manualBarberoId || !manualServicioId || !manualCliente.trim()) return;
@@ -1064,6 +1092,49 @@ function AdminContenido() {
                   {guardandoSena ? 'Guardando...' : senaGuardada ? '¡Configuración guardada!' : 'Guardar configuración de señas'}
                 </button>
               </form>
+            </section>
+            {/* Mi Suscripción */}
+            <section className="space-y-3 border-t border-neutral-800 pt-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400">
+                Mi Suscripción
+              </h2>
+
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-white">
+                    {barberia?.plan_estado === 'activa'
+                      ? 'Plan Mensual Activo'
+                      : barberia?.plan_estado === 'cancelada'
+                      ? 'Suscripción cancelada'
+                      : 'Prueba gratuita'}
+                  </p>
+                  <p className="text-xs text-neutral-400">
+                    {barberia?.vence_el
+                      ? `Acceso habilitado hasta el ${new Date(barberia.vence_el).toLocaleDateString('es-AR')}.`
+                      : 'Sin fecha de vencimiento.'}
+                  </p>
+                </div>
+
+                {barberia?.plan_estado === 'activa' ? (
+                  <button
+                    type="button"
+                    onClick={cancelarSuscripcion}
+                    disabled={cancelandoSuscripcion}
+                    className="bg-red-950/60 border border-red-900 text-red-300 text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-red-900/60 transition disabled:opacity-50"
+                  >
+                    {cancelandoSuscripcion ? 'Cancelando...' : 'Cancelar suscripción'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={iniciarSuscripcion}
+                    disabled={cargandoPago}
+                    className="bg-white text-black text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
+                  >
+                    {cargandoPago ? 'Cargando...' : 'Activar suscripción'}
+                  </button>
+                )}
+              </div>
             </section>
           </div>
         )}
