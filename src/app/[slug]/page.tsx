@@ -13,6 +13,7 @@ interface Barberia {
   cobra_sena: boolean;
   sena_monto: number;
   mp_dato: string;
+  vence_el?: string | null;
 }
 interface Barbero { id: string; nombre: string; }
 interface Servicio { id: string; nombre: string; duracion_min: number; precio: number; }
@@ -43,7 +44,7 @@ function ReservaContenido() {
     async function cargarDatos() {
       const { data: barb } = await supabase
         .from('barberias')
-        .select('id, nombre, whatsapp, cobra_sena, sena_monto, mp_dato')
+        .select('id, nombre, whatsapp, cobra_sena, sena_monto, mp_dato, vence_el')
         .eq('slug', slug)
         .single();
 
@@ -159,6 +160,23 @@ function ReservaContenido() {
 
   if (cargando) return <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">Cargando...</div>;
   if (!barberia) return <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">Barbería no encontrada.</div>;
+
+  const estaVencida = barberia.vence_el
+    ? new Date(barberia.vence_el) < new Date()
+    : false;
+
+  if (estaVencida) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center space-y-3">
+          <h1 className="text-xl font-bold">{barberia.nombre}</h1>
+          <p className="text-neutral-400 text-sm">
+            La agenda online de esta barbería se encuentra temporalmente pausada.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (confirmado) {
     const esLinkMp = barberia.mp_dato?.startsWith('http');

@@ -51,6 +51,13 @@ interface DiaHorario {
   franjas: Franja[];
 }
 
+interface BarberiaAdmin {
+  id: string;
+  nombre: string;
+  vence_el?: string | null;
+  plan_estado?: string | null;
+}
+
 const DIAS_SEMANA = [
   { dia: 1, label: 'Lunes' },
   { dia: 2, label: 'Martes' },
@@ -66,7 +73,7 @@ function AdminContenido() {
   const router = useRouter();
 
   const [pestana, setPestana] = useState<'agenda' | 'config'>('agenda');
-  const [barberia, setBarberia] = useState<{ id: string; nombre: string } | null>(null);
+  const [barberia, setBarberia] = useState<BarberiaAdmin | null>(null);
   const [barberos, setBarberos] = useState<Barbero[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [diasLibres, setDiasLibres] = useState<DiaLibre[]>([]);
@@ -75,6 +82,7 @@ function AdminContenido() {
   const [barberoFiltro, setBarberoFiltro] = useState<string>('todos');
   const [cargando, setCargando] = useState(true);
   const [copiado, setCopiado] = useState(false);
+  const [cargandoPago, setCargandoPago] = useState(false);
 
   // Estados para Turno Manual
   const [mostrarFormManual, setMostrarFormManual] = useState(false);
@@ -160,7 +168,7 @@ function AdminContenido() {
 
       const { data: barb } = await supabase
         .from('barberias')
-        .select('id, nombre, owner_id, cobra_sena, sena_monto, mp_dato')
+        .select('id, nombre, owner_id, cobra_sena, sena_monto, mp_dato, vence_el, plan_estado')
         .eq('slug', slug)
         .single();
 
@@ -169,7 +177,12 @@ function AdminContenido() {
         return;
       }
 
-      setBarberia({ id: barb.id, nombre: barb.nombre });
+      setBarberia({
+        id: barb.id,
+        nombre: barb.nombre,
+        vence_el: barb.vence_el,
+        plan_estado: barb.plan_estado,
+      });
       setCobraSena(Boolean(barb.cobra_sena));
       setSenaMonto(barb.sena_monto ? String(barb.sena_monto) : '');
       setMpDato(barb.mp_dato || '');
@@ -185,6 +198,31 @@ function AdminContenido() {
       cargarAgenda(barberia.id);
     }
   }, [barberia, fecha, barberoFiltro]);
+
+  async function iniciarSuscripcion() {
+    if (!barberia) return;
+    setCargandoPago(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const res = await fetch('/api/suscripcion/crear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barberiaId: barberia.id,
+          slug,
+          email: user?.email,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'No se pudo iniciar la suscripción');
+      }
+    } finally {
+      setCargandoPago(false);
+    }
+  }
 
   async function crearTurnoManual(e: React.FormEvent) {
     e.preventDefault();
@@ -418,6 +456,41 @@ function AdminContenido() {
     return <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">Cargando panel...</div>;
   }
 
+  const estaVencida = barberia?.vence_el
+    ? new Date(barberia.vence_el) < new Date()
+    : false;
+
+  const diasRestantes = barberia?.vence_el
+    ? Math.max(0, Math.ceil((new Date(barberia.vence_el).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+
+  if (barberia && estaVencida) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center space-y-5">
+          <h1 className="text-2xl font-bold">Tu prueba gratuita finalizó</h1>
+          <p className="text-neutral-400 text-sm">
+            Para seguir recibiendo turnos online y mantener activo tu link{' '}
+            <span className="text-white font-medium">/{slug}</span>, activá tu suscripción mensual automática.
+          </p>
+          <button
+            onClick={iniciarSuscripcion}
+            disabled={cargandoPago}
+            className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
+          >
+            {cargandoPago ? 'Redirigiendo a Mercado Pago...' : 'Activar suscripción mensual'}
+          </button>
+          <button
+            onClick={cerrarSesion}
+            className="text-xs text-neutral-500 hover:text-white transition"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   const totalDia = turnos
     .filter((t) => t.estado === 'confirmado' || t.estado === 'completado')
     .reduce((acc, t) => acc + (t.servicios?.precio || 0), 0);
@@ -448,6 +521,22 @@ function AdminContenido() {
             </button>
           </div>
         </header>
+
+        {/* Banner de días restantes de prueba */}
+        {barberia?.plan_estado === 'prueba' && !estaVencida && (
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-sm text-neutral-300">
+              Te quedan <strong className="text-white">{diasRestantes} días</strong> de prueba gratuita.
+            </p>
+            <button
+              onClick={iniciarSuscripcion}
+              disabled={cargandoPago}
+              className="bg-white text-black text-xs font-semibold px-4 py-2 rounded-lg hover:bg-neutral-200 transition disabled:opacity-50"
+            >
+              {cargandoPago ? 'Cargando...' : 'Suscribirme ahora'}
+            </button>
+          </div>
+        )}
 
         {/* Pestañas */}
         <div className="grid grid-cols-2 gap-2 bg-neutral-900 p-1 rounded-xl border border-neutral-800">
